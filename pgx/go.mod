@@ -1,4 +1,4 @@
-module github.com/go-raptor/connector/pgx
+module github.com/go-raptor/connectors/pgx
 
 go 1.24.2
 
