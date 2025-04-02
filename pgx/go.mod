@@ -1,9 +1,9 @@
 module github.com/go-raptor/connector/pgx
 
-go 1.24.0
+go 1.24.2
 
 require (
-	github.com/go-raptor/connector v1.0.1
+	github.com/go-raptor/connectors v1.0.2
 	github.com/jackc/pgx/v5 v5.7.4
 )
 

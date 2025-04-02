@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/go-raptor/connector"
+	"github.com/go-raptor/connectors"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PgxConnector struct {
 	config     interface{}
 	pool       *pgxpool.Pool
-	migrator   connector.Migrator
+	migrator   connectors.Migrator
 	migrations Migrations
 }
 
-func NewPgxConnector(config interface{}, migrations Migrations) connector.DatabaseConnector {
+func NewPgxConnector(config interface{}, migrations Migrations) connectors.DatabaseConnector {
 	return &PgxConnector{
 		config:     config,
 		migrations: migrations,
@@ -27,7 +27,7 @@ func (c *PgxConnector) Conn() any {
 	return c.pool
 }
 
-func (c *PgxConnector) Migrator() connector.Migrator {
+func (c *PgxConnector) Migrator() connectors.Migrator {
 	return c.migrator
 }
 

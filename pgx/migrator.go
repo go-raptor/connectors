@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/go-raptor/connector"
+	"github.com/go-raptor/connectors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -237,7 +237,7 @@ func (m *PgxMigrator) DownTo(version string) error {
 	return nil
 }
 
-func (m *PgxMigrator) Status() ([]connector.MigrationStatus, error) {
+func (m *PgxMigrator) Status() ([]connectors.MigrationStatus, error) {
 	ctx := context.Background()
 
 	rows, err := m.pool.Query(ctx,
@@ -248,9 +248,9 @@ func (m *PgxMigrator) Status() ([]connector.MigrationStatus, error) {
 	}
 	defer rows.Close()
 
-	executed := make(map[string]*connector.MigrationStatus)
+	executed := make(map[string]*connectors.MigrationStatus)
 	for rows.Next() {
-		var status connector.MigrationStatus
+		var status connectors.MigrationStatus
 		var executedAt time.Time
 		if err := rows.Scan(&status.Version, &status.Name, &executedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan migration status: %w", err)
@@ -260,12 +260,12 @@ func (m *PgxMigrator) Status() ([]connector.MigrationStatus, error) {
 		executed[status.Version] = &status
 	}
 
-	var statuses []connector.MigrationStatus
+	var statuses []connectors.MigrationStatus
 	for version, migration := range m.migrations {
 		if status, exists := executed[version]; exists {
 			statuses = append(statuses, *status)
 		} else {
-			statuses = append(statuses, connector.MigrationStatus{
+			statuses = append(statuses, connectors.MigrationStatus{
 				Version:    version,
 				Name:       migration.Name(),
 				ExecutedAt: nil,
