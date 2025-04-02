@@ -1,4 +1,4 @@
-module github.com/go-raptor/connector/bun/postgres
+module github.com/go-raptor/connectors/bun/postgres
 
 go 1.24.2
 
