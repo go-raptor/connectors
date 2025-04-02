@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/go-raptor/connector"
+	"github.com/go-raptor/connectors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/uptrace/bun"
@@ -19,7 +19,7 @@ type PostgresConnector struct {
 	migrator   *PostgresMigrator
 }
 
-func NewPostgresConnector(config interface{}, migrations Migrations) connector.DatabaseConnector {
+func NewPostgresConnector(config interface{}, migrations Migrations) connectors.DatabaseConnector {
 	return &PostgresConnector{
 		config:     config,
 		migrations: migrations,
@@ -30,7 +30,7 @@ func (c *PostgresConnector) Conn() any {
 	return c.conn
 }
 
-func (c *PostgresConnector) Migrator() connector.Migrator {
+func (c *PostgresConnector) Migrator() connectors.Migrator {
 	return c.migrator
 }
 

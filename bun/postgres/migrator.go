@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-raptor/connector"
+	"github.com/go-raptor/connectors"
 	"github.com/uptrace/bun"
 )
 
@@ -137,7 +137,7 @@ func (pm *PostgresMigrator) DownTo(version string) error {
 	return fmt.Errorf("not implemented")
 }
 
-func (pm *PostgresMigrator) Status() ([]connector.MigrationStatus, error) {
+func (pm *PostgresMigrator) Status() ([]connectors.MigrationStatus, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
