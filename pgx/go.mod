@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/go-raptor/connectors v1.0.2
-	github.com/jackc/pgx/v5 v5.9.0
+	github.com/jackc/pgx/v5 v5.9.1
 )
 
 require (
