@@ -10,6 +10,7 @@ import (
 )
 
 type PgxConnector struct {
+	config     interface{}
 	pool       *pgxpool.Pool
 	migrator   connectors.Migrator
 	migrations Migrations
@@ -21,6 +22,10 @@ func NewPgxConnector(migrations Migrations) connectors.DatabaseConnector {
 	}
 }
 
+func (c *PgxConnector) SetConfig(config interface{}) {
+	c.config = config
+}
+
 func (c *PgxConnector) Conn() any {
 	return c.pool
 }
@@ -29,8 +34,8 @@ func (c *PgxConnector) Migrator() connectors.Migrator {
 	return c.migrator
 }
 
-func (c *PgxConnector) Init(dbConfig interface{}) error {
-	val := reflect.ValueOf(dbConfig)
+func (c *PgxConnector) Init() error {
+	val := reflect.ValueOf(c.config)
 
 	if val.Kind() != reflect.Struct {
 		return fmt.Errorf("config must be a struct")
