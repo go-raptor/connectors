@@ -3,7 +3,7 @@ package connectors
 import "time"
 
 type DatabaseConnector interface {
-	Init() error
+	Init(config interface{}) error
 	Conn() any
 	Migrator() Migrator
 }
