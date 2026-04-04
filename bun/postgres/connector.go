@@ -13,6 +13,7 @@ import (
 )
 
 type PostgresConnector struct {
+	config     interface{}
 	migrations Migrations
 	conn       *bun.DB
 	migrator   *PostgresMigrator
@@ -24,6 +25,10 @@ func NewPostgresConnector(migrations Migrations) connectors.DatabaseConnector {
 	}
 }
 
+func (c *PostgresConnector) SetConfig(config interface{}) {
+	c.config = config
+}
+
 func (c *PostgresConnector) Conn() any {
 	return c.conn
 }
@@ -32,8 +37,8 @@ func (c *PostgresConnector) Migrator() connectors.Migrator {
 	return c.migrator
 }
 
-func (c *PostgresConnector) Init(config interface{}) error {
-	val := reflect.ValueOf(config)
+func (c *PostgresConnector) Init() error {
+	val := reflect.ValueOf(c.config)
 
 	if val.Kind() != reflect.Struct {
 		return fmt.Errorf("input is not a struct")
