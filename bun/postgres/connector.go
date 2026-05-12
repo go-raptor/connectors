@@ -2,10 +2,13 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"io/fs"
 	"reflect"
 
 	"github.com/go-raptor/connectors"
+	"github.com/go-raptor/connectors/goosemigrator"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/uptrace/bun"
@@ -13,19 +16,31 @@ import (
 )
 
 type PostgresConnector struct {
-	config     interface{}
-	migrations Migrations
-	conn       *bun.DB
-	migrator   *PostgresMigrator
+	config       any
+	pool         *pgxpool.Pool
+	sqlDB        *sql.DB
+	conn         *bun.DB
+	migrationsFS fs.FS
+	migrator     connectors.Migrator
 }
 
-func NewPostgresConnector(migrations Migrations) connectors.DatabaseConnector {
+// NewPostgresConnector returns a Postgres connector backed by Bun. The
+// migrationsFS argument should be an fs.FS rooted at the directory holding
+// the migration files (typically `fs.Sub(embedFS, "db/migrations")`). Pass
+// nil if no SQL migrations are embedded; Go migrations registered via
+// goose.AddMigration* still work.
+//
+// Go migrations run against a raw *sql.Tx, not *bun.DB. To use Bun's query
+// builder inside a Go migration, wrap the transaction:
+//
+//	bunTx := bun.NewTx(tx, pgdialect.New())
+func NewPostgresConnector(migrationsFS fs.FS) connectors.DatabaseConnector {
 	return &PostgresConnector{
-		migrations: migrations,
+		migrationsFS: migrationsFS,
 	}
 }
 
-func (c *PostgresConnector) SetConfig(config interface{}) {
+func (c *PostgresConnector) SetConfig(config any) {
 	c.config = config
 }
 
@@ -39,7 +54,6 @@ func (c *PostgresConnector) Migrator() connectors.Migrator {
 
 func (c *PostgresConnector) Init() error {
 	val := reflect.ValueOf(c.config)
-
 	if val.Kind() != reflect.Struct {
 		return fmt.Errorf("input is not a struct")
 	}
@@ -58,30 +72,29 @@ func (c *PostgresConnector) Init() error {
 		portField.Interface().(int),
 	)
 
-	configPgxPool, err := pgxpool.ParseConfig(dsn)
+	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return fmt.Errorf("failed to parse DSN: %w", err)
 	}
 
-	pool, err := pgxpool.NewWithConfig(context.Background(), configPgxPool)
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create connection pool: %w", err)
 	}
 
-	sqldb := stdlib.OpenDBFromPool(pool)
-	db := bun.NewDB(sqldb, pgdialect.New())
+	c.pool = pool
+	c.sqlDB = stdlib.OpenDBFromPool(pool)
+	c.conn = bun.NewDB(c.sqlDB, pgdialect.New())
 
-	if err := db.PingContext(context.Background()); err != nil {
+	if err := c.conn.PingContext(context.Background()); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	c.conn = db
-
-	c.migrator = NewPostgresMigrator(c.conn, c.migrations)
-
-	if err := c.migrator.Up(); err != nil {
-		return fmt.Errorf("failed to migrate: %w", err)
+	migrator, err := goosemigrator.New(c.sqlDB, c.migrationsFS, nil)
+	if err != nil {
+		return fmt.Errorf("failed to build migrator: %w", err)
 	}
+	c.migrator = migrator
 
 	return nil
 }
