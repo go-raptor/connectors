@@ -1,3 +1,3 @@
 module github.com/go-raptor/connectors
 
-go 1.24.2
+go 1.26
