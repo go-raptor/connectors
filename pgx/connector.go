@@ -2,23 +2,33 @@ package pgx
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"io/fs"
 	"reflect"
 
 	"github.com/go-raptor/connectors"
+	"github.com/go-raptor/connectors/goosemigrator"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 type PgxConnector struct {
-	config     interface{}
-	pool       *pgxpool.Pool
-	migrator   connectors.Migrator
-	migrations Migrations
+	config       interface{}
+	pool         *pgxpool.Pool
+	sqlDB        *sql.DB
+	migrationsFS fs.FS
+	migrator     connectors.Migrator
 }
 
-func NewPgxConnector(migrations Migrations) connectors.DatabaseConnector {
+// NewPgxConnector returns a Postgres connector backed by pgx. The
+// migrationsFS argument should be an fs.FS rooted at the directory holding
+// the migration files (typically `fs.Sub(embedFS, "db/migrations")`). Pass
+// nil if no SQL migrations are embedded; Go migrations registered via
+// goose.AddMigration* still work.
+func NewPgxConnector(migrationsFS fs.FS) connectors.DatabaseConnector {
 	return &PgxConnector{
-		migrations: migrations,
+		migrationsFS: migrationsFS,
 	}
 }
 
@@ -36,7 +46,6 @@ func (c *PgxConnector) Migrator() connectors.Migrator {
 
 func (c *PgxConnector) Init() error {
 	val := reflect.ValueOf(c.config)
-
 	if val.Kind() != reflect.Struct {
 		return fmt.Errorf("config must be a struct")
 	}
@@ -55,12 +64,12 @@ func (c *PgxConnector) Init() error {
 		nameField.Interface().(string),
 	)
 
-	config, err := pgxpool.ParseConfig(dsn)
+	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
-	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create connection pool: %w", err)
 	}
@@ -70,16 +79,13 @@ func (c *PgxConnector) Init() error {
 	}
 
 	c.pool = pool
+	c.sqlDB = stdlib.OpenDBFromPool(pool)
 
-	migrator := NewPgxMigrator(pool)
-	for version, migration := range c.migrations {
-		migrator.AddMigration(version, migration)
+	migrator, err := goosemigrator.New(c.sqlDB, c.migrationsFS, nil)
+	if err != nil {
+		return fmt.Errorf("failed to build migrator: %w", err)
 	}
 	c.migrator = migrator
-
-	if err := c.migrator.Up(); err != nil {
-		return fmt.Errorf("failed to run migrations: %w", err)
-	}
 
 	return nil
 }
