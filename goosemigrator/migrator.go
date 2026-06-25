@@ -1,8 +1,9 @@
 // Package goosemigrator wraps github.com/pressly/goose/v3 to implement the
-// connectors.Migrator interface. It is consumed by Raptor's connector
-// implementations (such as connectors/pgx and connectors/bun/postgres)
-// and lives in its own Go module so that the top-level connectors module
-// stays goose-free for Raptor apps that don't use a database.
+// connectors.Migrator interface. It is dialect-agnostic: callers select the
+// goose dialect and supply any database-specific provider options. It is
+// consumed by Raptor's connector implementations (such as connectors/pgx and
+// connectors/sqlite) and lives in its own Go module so that the top-level
+// connectors module stays goose-free for Raptor apps that don't use a database.
 package goosemigrator
 
 import (
@@ -10,31 +11,17 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
-	"log/slog"
 
 	"github.com/go-raptor/connectors"
 	"github.com/pressly/goose/v3"
-	"github.com/pressly/goose/v3/lock"
 )
 
 type Migrator struct {
 	provider *goose.Provider
 }
 
-func New(db *sql.DB, fsys fs.FS, log *slog.Logger) (*Migrator, error) {
-	locker, err := lock.NewPostgresSessionLocker()
-	if err != nil {
-		return nil, fmt.Errorf("goosemigrator: build session locker: %w", err)
-	}
-
-	opts := []goose.ProviderOption{
-		goose.WithSessionLocker(locker),
-	}
-	if log != nil {
-		opts = append(opts, goose.WithSlog(log))
-	}
-
-	p, err := goose.NewProvider(goose.DialectPostgres, db, fsys, opts...)
+func New(dialect goose.Dialect, db *sql.DB, fsys fs.FS, opts ...goose.ProviderOption) (*Migrator, error) {
+	p, err := goose.NewProvider(dialect, db, fsys, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("goosemigrator: new provider: %w", err)
 	}
