@@ -11,6 +11,8 @@ import (
 	"github.com/go-raptor/connectors/goosemigrator"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 )
 
 type PgxConnector struct {
@@ -81,7 +83,14 @@ func (c *PgxConnector) Init() error {
 	c.pool = pool
 	c.sqlDB = stdlib.OpenDBFromPool(pool)
 
-	migrator, err := goosemigrator.New(c.sqlDB, c.migrationsFS, nil)
+	// Postgres uses goose's advisory-lock session locker so concurrent app
+	// instances don't run migrations simultaneously.
+	locker, err := lock.NewPostgresSessionLocker()
+	if err != nil {
+		return fmt.Errorf("failed to build session locker: %w", err)
+	}
+
+	migrator, err := goosemigrator.New(goose.DialectPostgres, c.sqlDB, c.migrationsFS, goose.WithSessionLocker(locker))
 	if err != nil {
 		return fmt.Errorf("failed to build migrator: %w", err)
 	}
