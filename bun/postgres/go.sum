@@ -9,6 +9,8 @@ github.com/go-raptor/connectors/goosemigrator v1.0.0 h1:fretpDz1Uu+qKmnyOZzK+p6x
 github.com/go-raptor/connectors/goosemigrator v1.0.0/go.mod h1:nrE3MCZck9Z0DREBpBsZSWGPXHuxRqpPFiA4rHrT+QM=
 github.com/go-raptor/connectors/goosemigrator v1.1.0 h1:25oeJmay8KjbBWci29cGK8u1d1AS6DCD+w6gz3CSpG4=
 github.com/go-raptor/connectors/goosemigrator v1.1.0/go.mod h1:lyXQe3e1iiynxBfwp03OrfCiGZzCbLPq6+FBkPtt5h8=
+github.com/go-raptor/connectors/goosemigrator v1.1.1 h1:SUIMalU27HZaBsWdWAF2AXfd6hQRCycFgQYkmqC7byc=
+github.com/go-raptor/connectors/goosemigrator v1.1.1/go.mod h1:lyXQe3e1iiynxBfwp03OrfCiGZzCbLPq6+FBkPtt5h8=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=
