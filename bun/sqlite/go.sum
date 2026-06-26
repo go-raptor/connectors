@@ -6,6 +6,8 @@ github.com/go-raptor/connectors v1.1.0 h1:U6Fjhv68q7gIoFEAIKZGd5TtKygmZI8tG5TJt6
 github.com/go-raptor/connectors v1.1.0/go.mod h1:A7T++oNId2F9SB5i9IQcm+3QzruL5s1nFLfRk1eA0SU=
 github.com/go-raptor/connectors/goosemigrator v1.1.0 h1:25oeJmay8KjbBWci29cGK8u1d1AS6DCD+w6gz3CSpG4=
 github.com/go-raptor/connectors/goosemigrator v1.1.0/go.mod h1:lyXQe3e1iiynxBfwp03OrfCiGZzCbLPq6+FBkPtt5h8=
+github.com/go-raptor/connectors/goosemigrator v1.1.1 h1:SUIMalU27HZaBsWdWAF2AXfd6hQRCycFgQYkmqC7byc=
+github.com/go-raptor/connectors/goosemigrator v1.1.1/go.mod h1:lyXQe3e1iiynxBfwp03OrfCiGZzCbLPq6+FBkPtt5h8=
 github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e h1:ijClszYn+mADRFY17kjQEVQ1XRhq2/JR1M3sGqeJoxs=
 github.com/google/pprof v0.0.0-20250317173921-a4b03ec1a45e/go.mod h1:boTsfXsheKC2y+lKOCMpSfarhxDeIzfZG1jqGcPl3cA=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
