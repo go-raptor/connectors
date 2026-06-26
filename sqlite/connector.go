@@ -68,8 +68,6 @@ func (c *SQLiteConnector) Init() error {
 	}
 
 	if isMemory(name) {
-		// A shared-cache in-memory database is dropped when its last
-		// connection closes, so keep exactly one connection alive.
 		db.SetMaxOpenConns(1)
 	}
 
@@ -88,7 +86,6 @@ func (c *SQLiteConnector) Init() error {
 	return nil
 }
 
-// isMemory reports whether name refers to an in-memory SQLite database.
 func isMemory(name string) bool {
 	return name == ":memory:" || strings.Contains(name, ":memory:") || strings.Contains(name, "mode=memory")
 }
