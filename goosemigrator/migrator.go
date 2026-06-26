@@ -9,6 +9,7 @@ package goosemigrator
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 
@@ -16,6 +17,9 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
+// Migrator wraps a goose provider. A zero-value Migrator (nil provider)
+// represents a database with no migrations and behaves as a no-op, so apps that
+// register a database connector before writing any migrations still work.
 type Migrator struct {
 	provider *goose.Provider
 }
@@ -23,6 +27,9 @@ type Migrator struct {
 func New(dialect goose.Dialect, db *sql.DB, fsys fs.FS, opts ...goose.ProviderOption) (*Migrator, error) {
 	p, err := goose.NewProvider(dialect, db, fsys, opts...)
 	if err != nil {
+		if errors.Is(err, goose.ErrNoMigrations) {
+			return &Migrator{}, nil
+		}
 		return nil, fmt.Errorf("goosemigrator: new provider: %w", err)
 	}
 
@@ -30,31 +37,49 @@ func New(dialect goose.Dialect, db *sql.DB, fsys fs.FS, opts ...goose.ProviderOp
 }
 
 func (m *Migrator) Up(ctx context.Context) ([]connectors.MigrationResult, error) {
+	if m.provider == nil {
+		return nil, nil
+	}
 	results, err := m.provider.Up(ctx)
 	return convertResults(results), err
 }
 
 func (m *Migrator) UpByOne(ctx context.Context) (*connectors.MigrationResult, error) {
+	if m.provider == nil {
+		return nil, nil
+	}
 	result, err := m.provider.UpByOne(ctx)
 	return convertResult(result), err
 }
 
 func (m *Migrator) UpTo(ctx context.Context, version int64) ([]connectors.MigrationResult, error) {
+	if m.provider == nil {
+		return nil, nil
+	}
 	results, err := m.provider.UpTo(ctx, version)
 	return convertResults(results), err
 }
 
 func (m *Migrator) Down(ctx context.Context) (*connectors.MigrationResult, error) {
+	if m.provider == nil {
+		return nil, nil
+	}
 	result, err := m.provider.Down(ctx)
 	return convertResult(result), err
 }
 
 func (m *Migrator) DownTo(ctx context.Context, version int64) ([]connectors.MigrationResult, error) {
+	if m.provider == nil {
+		return nil, nil
+	}
 	results, err := m.provider.DownTo(ctx, version)
 	return convertResults(results), err
 }
 
 func (m *Migrator) Redo(ctx context.Context) (*connectors.MigrationResult, error) {
+	if m.provider == nil {
+		return nil, nil
+	}
 	if _, err := m.provider.Down(ctx); err != nil {
 		return nil, fmt.Errorf("goosemigrator: redo down: %w", err)
 	}
@@ -66,11 +91,17 @@ func (m *Migrator) Redo(ctx context.Context) (*connectors.MigrationResult, error
 }
 
 func (m *Migrator) Reset(ctx context.Context) ([]connectors.MigrationResult, error) {
+	if m.provider == nil {
+		return nil, nil
+	}
 	results, err := m.provider.DownTo(ctx, 0)
 	return convertResults(results), err
 }
 
 func (m *Migrator) Status(ctx context.Context) ([]connectors.MigrationStatus, error) {
+	if m.provider == nil {
+		return nil, nil
+	}
 	statuses, err := m.provider.Status(ctx)
 	if err != nil {
 		return nil, err
@@ -97,6 +128,9 @@ func (m *Migrator) Status(ctx context.Context) ([]connectors.MigrationStatus, er
 }
 
 func (m *Migrator) Version(ctx context.Context) (int64, error) {
+	if m.provider == nil {
+		return 0, nil
+	}
 	return m.provider.GetDBVersion(ctx)
 }
 
