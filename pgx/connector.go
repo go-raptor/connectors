@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
-	"reflect"
 
 	"github.com/go-raptor/connectors"
 	"github.com/go-raptor/connectors/goosemigrator"
@@ -47,24 +46,10 @@ func (c *PgxConnector) Migrator() connectors.Migrator {
 }
 
 func (c *PgxConnector) Init() error {
-	val := reflect.ValueOf(c.config)
-	if val.Kind() != reflect.Struct {
-		return fmt.Errorf("config must be a struct")
+	dsn, err := connString(c.config)
+	if err != nil {
+		return err
 	}
-
-	hostField := val.FieldByName("Host")
-	portField := val.FieldByName("Port")
-	userField := val.FieldByName("Username")
-	passwordField := val.FieldByName("Password")
-	nameField := val.FieldByName("Name")
-
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		userField.Interface().(string),
-		passwordField.Interface().(string),
-		hostField.Interface().(string),
-		portField.Interface().(int),
-		nameField.Interface().(string),
-	)
 
 	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
