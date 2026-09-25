@@ -2,7 +2,7 @@
 
 Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/postgres/vX.Y.Z`).
 
-## pgx — Unreleased (v1.2.0)
+## pgx — v1.2.0 (2026-09-25)
 
 ### Upgrading
 
@@ -20,7 +20,7 @@ Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/p
 
 - `sslmode` comes from Raptor's `database.ssl_mode` (raptor/v4 v4.4.0+, default `prefer`). When the config has no `SSLMode` field (older Raptor) or it is empty, the connector keeps `sslmode=disable`.
 
-## bun/postgres — Unreleased (v1.2.0)
+## bun/postgres — v1.2.0 (2026-09-25)
 
 ### Upgrading
 
