@@ -37,9 +37,9 @@ database:
 ```
 
 - `password` comes from `DATABASE_PASSWORD`; keep it out of tracked files. An empty password is left out of the connection URL, so `PGPASSWORD` and `~/.pgpass` still apply.
-- Every field is URL-escaped, so passwords may contain any character, `@ : / ? #`, spaces and quotes included.
-- A `host` starting with `/` is a Unix-socket directory, e.g. `/var/run/postgresql`. IPv6 addresses such as `::1` work as-is.
-- `ssl_mode` (`DATABASE_SSL_MODE`) is libpq's `sslmode`: `disable`, `prefer`, `require`, `verify-ca` or `verify-full`. Raptor v4.4.0+ defaults it to `prefer`. With an older Raptor, which has no such setting, the connectors keep `disable`, their previous hard-coded value. Use `verify-full` for managed databases.
+- Every field is URL-escaped, so passwords may contain any character, `@ : / ? #`, spaces and quotes included. Store the raw value: if you percent-encoded or escaped credentials to work around releases before v1.2.0, undo that when upgrading.
+- A `host` starting with `/` is a Unix-socket directory, e.g. `/var/run/postgresql`. IPv6 addresses work bare (`::1`) or bracketed (`[::1]`).
+- `ssl_mode` (`DATABASE_SSL_MODE`) is libpq's `sslmode`: `disable`, `prefer`, `require`, `verify-ca` or `verify-full`. Raptor v4.4.0+ defaults it to `prefer`. With an older Raptor, which has no such setting, the connectors keep `disable`, their previous hard-coded value. Use `verify-full` for managed databases. `verify-full` checks the server certificate against the system roots; if your provider signs with its own CA (Amazon RDS does), point `PGSSLROOTCERT` at the provider's CA bundle.
 
 ## SQLite configuration
 

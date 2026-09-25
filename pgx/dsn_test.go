@@ -82,10 +82,14 @@ func TestConnStringSSLMode(t *testing.T) {
 }
 
 func TestConnStringIPv6AndUnixSocketHosts(t *testing.T) {
-	for _, host := range []string{"::1", "/var/run/postgresql"} {
+	for host, want := range map[string]string{
+		"::1":                 "::1",
+		"[::1]":               "::1", // the bracketed form older pgx releases required
+		"/var/run/postgresql": "/var/run/postgresql",
+	} {
 		cc := parse(t, databaseConfig{Host: host, Port: 5433, Username: "app", Password: "pw", Name: "app", SSLMode: "disable"}).ConnConfig
-		if cc.Host != host || cc.Port != 5433 {
-			t.Errorf("host %q: got host=%q port=%d", host, cc.Host, cc.Port)
+		if cc.Host != want || cc.Port != 5433 {
+			t.Errorf("host %q: got host=%q port=%d, want host=%q", host, cc.Host, cc.Port, want)
 		}
 	}
 }

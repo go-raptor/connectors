@@ -58,6 +58,11 @@ func connString(config any) (string, error) {
 		query.Set("host", host)
 		query.Set("port", port)
 	} else {
+		// Older releases needed IPv6 hosts bracketed ("[::1]"); JoinHostPort
+		// adds the brackets itself.
+		if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+			host = host[1 : len(host)-1]
+		}
 		u.Host = net.JoinHostPort(host, port)
 	}
 	u.RawQuery = query.Encode()
