@@ -193,3 +193,14 @@ func ping(pool *pgxpool.Pool, timeout time.Duration) error {
 	}
 	return conn.Ping(ctx)
 }
+
+var errNotInitialized = errors.New("pgx: connector not initialized")
+
+// Ping checks the database is reachable; Raptor's readiness check
+// (Health.Ready) calls it.
+func (c *PgxConnector) Ping(ctx context.Context) error {
+	if c.pool == nil {
+		return errNotInitialized
+	}
+	return c.pool.Ping(ctx)
+}

@@ -133,3 +133,30 @@ func TestUnreachableErrorNamesHost(t *testing.T) {
 		t.Fatalf("the startup error must name the unreachable address: %v", err)
 	}
 }
+
+// Raptor's readiness check (Health.Ready) calls Ping.
+func TestPing(t *testing.T) {
+	c := NewPostgresConnector(nil, WithPoolConfig(func(pc *pgxpool.Config) {
+		pc.ConnConfig.ConnectTimeout = 300 * time.Millisecond
+	})).(*PostgresConnector)
+	if err := c.Ping(context.Background()); err == nil {
+		t.Fatal("Ping before Init must be an error, not a panic")
+	}
+
+	cfg := testConfig()
+	cfg.Host = "10.255.255.1"
+	c.SetConfig(cfg)
+	poolConfig, err := c.poolConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig) // lazy
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	c.pool = pool
+	if err := c.Ping(context.Background()); err == nil {
+		t.Fatal("Ping to an unreachable host must fail")
+	}
+}

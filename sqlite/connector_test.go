@@ -188,3 +188,20 @@ func TestReadOnlyTransactionsStayConcurrent(t *testing.T) {
 		t.Fatalf("a read-only transaction waited %v for the writer", elapsed)
 	}
 }
+
+// Raptor's readiness check (Health.Ready) calls Ping.
+func TestPing(t *testing.T) {
+	if err := NewSQLiteConnector(nil).(*SQLiteConnector).Ping(context.Background()); err == nil {
+		t.Fatal("Ping before Init must be an error, not a panic")
+	}
+	c := open(t, dbConfig{Name: filepath.Join(t.TempDir(), "ping.db")})
+	if err := c.Ping(context.Background()); err != nil {
+		t.Fatalf("Ping: %v", err)
+	}
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Ping(context.Background()); err == nil {
+		t.Fatal("Ping after Close must fail")
+	}
+}

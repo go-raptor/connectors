@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -130,4 +131,15 @@ func buildDSN(name string) string {
 		return name + "&" + dsnOptions
 	}
 	return name + "?" + dsnOptions
+}
+
+var errNotInitialized = errors.New("sqlite: connector not initialized")
+
+// Ping checks the database is reachable; Raptor's readiness check
+// (Health.Ready) calls it.
+func (c *SQLiteConnector) Ping(ctx context.Context) error {
+	if c.db == nil {
+		return errNotInitialized
+	}
+	return c.db.PingContext(ctx)
 }
