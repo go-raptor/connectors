@@ -206,10 +206,22 @@ func ping(pool *pgxpool.Pool, timeout time.Duration) error {
 var errNotInitialized = errors.New("bun/postgres: connector not initialized")
 
 // Ping checks the database is reachable; Raptor's readiness check
-// (Health.Ready) calls it.
+// (Health.Ready) calls it. pgxpool's Ping first acquires a connection, so
+// with every connection checked out (the database is answering queries)
+// Ping reports success instead of waiting and failing readiness on a busy
+// app.
 func (c *PostgresConnector) Ping(ctx context.Context) error {
 	if c.pool == nil {
 		return errNotInitialized
 	}
+	if st := c.pool.Stat(); poolSaturated(st.AcquiredConns(), st.MaxConns()) {
+		return nil
+	}
 	return c.pool.Ping(ctx)
+}
+
+// poolSaturated reports whether every connection of a pool with max
+// connections is checked out.
+func poolSaturated(acquired, max int32) bool {
+	return max > 0 && acquired >= max
 }

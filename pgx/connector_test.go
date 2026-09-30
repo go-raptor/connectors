@@ -157,3 +157,16 @@ func TestPing(t *testing.T) {
 		t.Fatal("Ping to an unreachable host must fail")
 	}
 }
+
+// A pool with every connection checked out is answering queries; Ping
+// must not wait for one to free up and report a busy app as unreachable.
+func TestPoolSaturated(t *testing.T) {
+	for _, tc := range []struct {
+		acquired, max int32
+		want          bool
+	}{{4, 4, true}, {5, 4, true}, {3, 4, false}, {0, 0, false}} {
+		if got := poolSaturated(tc.acquired, tc.max); got != tc.want {
+			t.Errorf("poolSaturated(%d, %d) = %v, want %v", tc.acquired, tc.max, got, tc.want)
+		}
+	}
+}

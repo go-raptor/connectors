@@ -205,3 +205,20 @@ func TestPing(t *testing.T) {
 		t.Fatal("Ping after Close must fail")
 	}
 }
+
+// Every connection in use means the database is answering queries; Ping
+// must not wait for one to free up and report a busy app as unreachable.
+func TestPingWithEveryConnectionBusy(t *testing.T) {
+	c := open(t, dbConfig{Name: ":memory:"}) // exactly one connection
+	tx, err := c.sqlDB.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	if err := c.Ping(ctx); err != nil {
+		t.Fatalf("Ping with the only connection busy: %v", err)
+	}
+}

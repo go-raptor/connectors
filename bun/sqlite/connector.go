@@ -147,10 +147,15 @@ func buildDSN(name string) string {
 var errNotInitialized = errors.New("bun/sqlite: connector not initialized")
 
 // Ping checks the database is reachable; Raptor's readiness check
-// (Health.Ready) calls it.
+// (Health.Ready) calls it. With every connection in use the database is
+// answering queries, so Ping reports success instead of waiting for one to
+// free up and failing readiness on a busy app.
 func (c *SQLiteConnector) Ping(ctx context.Context) error {
 	if c.conn == nil {
 		return errNotInitialized
+	}
+	if st := c.conn.Stats(); st.MaxOpenConnections > 0 && st.InUse >= st.MaxOpenConnections {
+		return nil
 	}
 	return c.conn.PingContext(ctx)
 }
