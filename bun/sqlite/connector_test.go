@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"io/fs"
 	"os"
@@ -155,5 +156,35 @@ func TestNameWithQueryKeepsPragmas(t *testing.T) {
 func TestMemoryDatabaseNameIsPackageSpecific(t *testing.T) {
 	if dsn := buildDSN(":memory:"); !strings.HasPrefix(dsn, "file:raptor-bun-sqlite-memory-") {
 		t.Fatalf("in-memory DSN %q must start with file:raptor-bun-sqlite-memory-", dsn)
+	}
+}
+
+// modernc begins a ReadOnly transaction with a plain deferred BEGIN, which
+// keeps read-only work concurrent under _txlock=immediate. The README tells
+// users to rely on it, so pin it against driver changes.
+func TestReadOnlyTransactionsStayConcurrent(t *testing.T) {
+	db := open(t, dbConfig{Name: filepath.Join(t.TempDir(), "ro.db")}).sqlDB
+	if _, err := db.Exec(`CREATE TABLE t (x int); INSERT INTO t VALUES (1)`); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	writer, err := db.BeginTx(ctx, nil) // takes the write lock
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Rollback()
+
+	start := time.Now()
+	reader, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatalf("read-only BeginTx while a writer is open: %v", err)
+	}
+	defer reader.Rollback()
+	var x int
+	if err := reader.QueryRowContext(ctx, `SELECT x FROM t`).Scan(&x); err != nil || x != 1 {
+		t.Fatalf("read-only query: %d, %v", x, err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("a read-only transaction waited %v for the writer", elapsed)
 	}
 }

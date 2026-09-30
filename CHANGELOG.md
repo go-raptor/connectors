@@ -4,14 +4,19 @@ Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/p
 
 ## pgx — Unreleased
 
+### Upgrading
+
+- Every new pool connection, not only the one at startup, now gives up after 10 seconds. A database that takes longer to accept connections, such as a serverless one resuming from a pause, needs a larger `ConnectTimeout` through `WithPoolConfig` or `PGCONNECT_TIMEOUT`.
+- `Shutdown` now closes the pool and waits up to 5 seconds for connections still in use; after that `Close` returns an error naming how many were not released.
+
 ### Added
 
-- `Close`: Raptor's `Shutdown` now closes the pool, after in-flight requests drain and services stop. Before, every connection was dropped at process exit.
+- `Close`: Raptor's `Shutdown` now closes the pool, after in-flight requests drain and services stop, waiting up to 5 seconds for connections still in use. Before, every connection was dropped at process exit.
 - `WithPoolConfig(func(*pgxpool.Config))` adjusts the pool before it opens: `MaxConns`, lifetimes, the connect timeout, or server settings such as `statement_timeout` through `ConnConfig.RuntimeParams`.
 
 ### Fixed
 
-- An unreachable database blocked startup until the OS gave up on the TCP handshake, about two minutes on Linux. Connection attempts and the startup ping now time out after 10 seconds; `PGCONNECT_TIMEOUT` still overrides it.
+- An unreachable database blocked startup until the OS gave up on the TCP handshake, about two minutes on Linux. Connection attempts and the startup ping now time out after 10 seconds, with an error naming the address; `PGCONNECT_TIMEOUT` still overrides it.
 - A failed `Init` closes the pool it opened instead of leaking it.
 
 ### Security
@@ -24,14 +29,19 @@ Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/p
 
 ## bun/postgres — Unreleased
 
+### Upgrading
+
+- Every new pool connection, not only the one at startup, now gives up after 10 seconds. A database that takes longer to accept connections, such as a serverless one resuming from a pause, needs a larger `ConnectTimeout` through `WithPoolConfig` or `PGCONNECT_TIMEOUT`.
+- `Shutdown` now closes the pool and waits up to 5 seconds for connections still in use; after that `Close` returns an error naming how many were not released.
+
 ### Added
 
-- `Close`: Raptor's `Shutdown` now closes the pool, after in-flight requests drain and services stop. Before, every connection was dropped at process exit.
+- `Close`: Raptor's `Shutdown` now closes the pool, after in-flight requests drain and services stop, waiting up to 5 seconds for connections still in use. Before, every connection was dropped at process exit.
 - `WithPoolConfig(func(*pgxpool.Config))` adjusts the pool before it opens: `MaxConns`, lifetimes, the connect timeout, or server settings such as `statement_timeout` through `ConnConfig.RuntimeParams`.
 
 ### Fixed
 
-- An unreachable database blocked startup until the OS gave up on the TCP handshake, about two minutes on Linux. Connection attempts and the startup ping now time out after 10 seconds; `PGCONNECT_TIMEOUT` still overrides it.
+- An unreachable database blocked startup until the OS gave up on the TCP handshake, about two minutes on Linux. Connection attempts and the startup ping now time out after 10 seconds, with an error naming the address; `PGCONNECT_TIMEOUT` still overrides it.
 - A failed `Init` closes the pool it opened instead of leaking it.
 
 ### Security
@@ -46,7 +56,7 @@ Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/p
 
 ### Upgrading
 
-- Transactions begin `IMMEDIATE`: `BeginTx` takes the write lock at once and waits for it under the 5-second busy timeout. Explicit transactions, read-only ones included, now run one at a time. Queries outside a transaction are unaffected.
+- Transactions begin `IMMEDIATE`: a `BeginTx` without `ReadOnly` takes the write lock at once, waiting for it under the 5-second busy timeout. While such a transaction is open, every other write, inside a transaction or not, waits up to 5 seconds and then fails with `database is locked`, so a long transaction that only reads now stalls writers. Declare read-only work with `&sql.TxOptions{ReadOnly: true}` to keep it concurrent, or put `_txlock=deferred` in `database.name` to opt out.
 
 ### Added
 
@@ -67,7 +77,7 @@ Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/p
 
 ### Upgrading
 
-- Transactions begin `IMMEDIATE`: `BeginTx` takes the write lock at once and waits for it under the 5-second busy timeout. Explicit transactions, read-only ones included, now run one at a time. Queries outside a transaction are unaffected.
+- Transactions begin `IMMEDIATE`: a `BeginTx` without `ReadOnly` takes the write lock at once, waiting for it under the 5-second busy timeout. While such a transaction is open, every other write, inside a transaction or not, waits up to 5 seconds and then fails with `database is locked`, so a long transaction that only reads now stalls writers. Declare read-only work with `&sql.TxOptions{ReadOnly: true}` to keep it concurrent, or put `_txlock=deferred` in `database.name` to opt out.
 
 ### Added
 

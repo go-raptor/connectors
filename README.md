@@ -40,8 +40,8 @@ database:
 - Every field is URL-escaped, so passwords may contain any character, `@ : / ? #`, spaces and quotes included. Store the raw value: if you percent-encoded or escaped credentials to work around releases before v1.2.0, undo that when upgrading.
 - A `host` starting with `/` is a Unix-socket directory, e.g. `/var/run/postgresql`. IPv6 addresses work bare (`::1`) or bracketed (`[::1]`).
 - `ssl_mode` (`DATABASE_SSL_MODE`) is libpq's `sslmode`: `disable`, `prefer`, `require`, `verify-ca` or `verify-full`. Raptor v4.4.0+ defaults it to `prefer`. With an older Raptor, which has no such setting, the connectors keep `disable`, their previous hard-coded value. Use `verify-full` for managed databases. `verify-full` checks the server certificate against the system roots; if your provider signs with its own CA (Amazon RDS does), point `PGSSLROOTCERT` at the provider's CA bundle.
-- Each connection attempt times out after 10 seconds (v1.3.0+), and so does the startup ping, so an unreachable database fails startup quickly instead of hanging for the two minutes the OS takes to give up. `PGCONNECT_TIMEOUT` overrides it.
-- Raptor's `Shutdown` closes the pool (v1.3.0+) after in-flight requests drain and services stop.
+- Each connection attempt times out after 10 seconds (v1.3.0+), and so does the startup ping, so an unreachable database fails startup quickly, with an error naming the address, instead of hanging for the two minutes the OS takes to give up. The limit applies to every new pool connection, not only the first. For a database that's slow to accept connections, such as a serverless one resuming from a pause, raise it with `PGCONNECT_TIMEOUT` or `WithPoolConfig`.
+- Raptor's `Shutdown` closes the pool (v1.3.0+) after in-flight requests drain and services stop. It waits up to 5 seconds for connections still in use, such as a query run on `context.Background()`.
 
 ### Pool tuning
 
@@ -56,13 +56,13 @@ postgres.NewPostgresConnector(db.MigrationsFS(),
 )
 ```
 
-`pgx.NewPgxConnector` takes the same `pgx.WithPoolConfig`.
+`pgx.NewPgxConnector` takes the same `pgx.WithPoolConfig`. The same pool runs your migrations (auto-migrate and the migrate commands), so a `statement_timeout` set here also applies to them. Set it above your slowest migration, or per query with `SET LOCAL statement_timeout` inside a transaction.
 
 ## SQLite configuration
 
 The SQLite connectors read only `database.name`, the path of the database file. Every connection gets:
 
 - a 5-second busy timeout, foreign keys on, and WAL journaling;
-- transactions that begin `IMMEDIATE` (v1.1.0+). A transaction takes the write lock when it begins, so a second writer waits for it under the busy timeout, instead of failing with `database is locked` because it read before the first one committed. The cost: explicit transactions, read-only ones included, run one at a time. Queries outside a transaction still run concurrently.
+- transactions that begin `IMMEDIATE` (v1.1.0+). A transaction opened without `ReadOnly` takes the write lock when it begins, so a second writer waits for it under the busy timeout, instead of failing with `database is locked` because it read before the first one committed. While such a transaction is open, every other write, in a transaction or not, waits up to 5 seconds and then fails, so keep write transactions short. Open read-only work with `&sql.TxOptions{ReadOnly: true}` (with Bun, `RunInTx(ctx, &sql.TxOptions{ReadOnly: true}, …)`): it keeps running alongside writers, but must not write. `_txlock=deferred` in `database.name` restores the previous behavior.
 
 `database.name` may carry its own query string, such as `file:app.db?mode=rwc`; these settings are appended to it. `:memory:` gives each connector its own in-memory database, kept on a single connection, so two test apps in one process don't share tables. Raptor's `Shutdown` closes the database (v1.1.0+), which checkpoints the WAL into the main file.
