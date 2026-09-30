@@ -2,25 +2,25 @@
 
 Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/postgres/vX.Y.Z`).
 
-## pgx — Unreleased
+## pgx — v1.4.0 (2026-09-30)
 
 ### Added
 
 - `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error. With every connection in use it reports success rather than waiting for one, so a busy app isn't taken out of rotation.
 
-## bun/postgres — Unreleased
+## bun/postgres — v1.4.0 (2026-09-30)
 
 ### Added
 
 - `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error. With every connection in use it reports success rather than waiting for one, so a busy app isn't taken out of rotation.
 
-## sqlite — Unreleased
+## sqlite — v1.2.0 (2026-09-30)
 
 ### Added
 
 - `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error. With every connection in use it reports success rather than waiting for one.
 
-## bun/sqlite — Unreleased
+## bun/sqlite — v1.2.0 (2026-09-30)
 
 ### Added
 
