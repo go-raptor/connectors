@@ -6,25 +6,25 @@ Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/p
 
 ### Added
 
-- `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error.
+- `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error. With every connection in use it reports success rather than waiting for one, so a busy app isn't taken out of rotation.
 
 ## bun/postgres — Unreleased
 
 ### Added
 
-- `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error.
+- `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error. With every connection in use it reports success rather than waiting for one, so a busy app isn't taken out of rotation.
 
 ## sqlite — Unreleased
 
 ### Added
 
-- `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error.
+- `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error. With every connection in use it reports success rather than waiting for one.
 
 ## bun/sqlite — Unreleased
 
 ### Added
 
-- `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error.
+- `Ping(ctx context.Context) error` checks that the database is reachable. Raptor's readiness check (`Health.Ready`, raptor v4.6.0+) calls it; before `Init` it returns an error. With every connection in use it reports success rather than waiting for one.
 
 ## pgx — v1.3.0 (2026-09-30)
 
