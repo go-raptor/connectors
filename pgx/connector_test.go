@@ -1,10 +1,13 @@
 package pgx
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 func testConfig() databaseConfig {
@@ -59,5 +62,36 @@ func TestInitFailsFastWhenUnreachable(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Fatalf("Init took %v; the connect timeout must bound it", elapsed)
+	}
+	if c.pool != nil || c.sqlDB != nil {
+		t.Fatal("a failed Init must not keep a half-open pool")
+	}
+}
+
+func TestCloseClosesPoolAndSQLHandle(t *testing.T) {
+	c := NewPgxConnector(nil).(*PgxConnector)
+	if err := c.Close(); err != nil {
+		t.Fatalf("Close before Init: %v", err)
+	}
+
+	c.SetConfig(testConfig())
+	cfg, err := c.poolConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg) // lazy: connects on first use
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.pool, c.sqlDB = pool, stdlib.OpenDBFromPool(pool)
+
+	if err := c.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := c.sqlDB.Ping(); err == nil || !strings.Contains(err.Error(), "closed") {
+		t.Fatalf("the database/sql handle must be closed, Ping: %v", err)
+	}
+	if _, err := pool.Acquire(context.Background()); err == nil {
+		t.Fatal("the pool must be closed")
 	}
 }

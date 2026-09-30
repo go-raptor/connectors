@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"io/fs"
 	"time"
 
@@ -29,6 +30,8 @@ type PgxConnector struct {
 	migrator      connectors.Migrator
 	configurePool []func(*pgxpool.Config)
 }
+
+var _ io.Closer = (*PgxConnector)(nil)
 
 // Option configures a PgxConnector.
 type Option func(*PgxConnector)
@@ -79,13 +82,20 @@ func (c *PgxConnector) Init() error {
 	if err != nil {
 		return fmt.Errorf("failed to create connection pool: %w", err)
 	}
+	sqlDB := stdlib.OpenDBFromPool(pool)
+	// Close what Init opened if it fails part-way, so a caller that
+	// handles the error doesn't leak a pool.
+	ready := false
+	defer func() {
+		if !ready {
+			sqlDB.Close()
+			pool.Close()
+		}
+	}()
 
 	if err := ping(pool, poolConfig.ConnConfig.ConnectTimeout); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
-
-	c.pool = pool
-	c.sqlDB = stdlib.OpenDBFromPool(pool)
 
 	// Postgres uses goose's advisory-lock session locker so concurrent app
 	// instances don't run migrations simultaneously.
@@ -94,13 +104,28 @@ func (c *PgxConnector) Init() error {
 		return fmt.Errorf("failed to build session locker: %w", err)
 	}
 
-	migrator, err := goosemigrator.New(goose.DialectPostgres, c.sqlDB, c.migrationsFS, goose.WithSessionLocker(locker))
+	migrator, err := goosemigrator.New(goose.DialectPostgres, sqlDB, c.migrationsFS, goose.WithSessionLocker(locker))
 	if err != nil {
 		return fmt.Errorf("failed to build migrator: %w", err)
 	}
-	c.migrator = migrator
 
+	c.pool, c.sqlDB, c.migrator = pool, sqlDB, migrator
+	ready = true
 	return nil
+}
+
+// Close closes the database/sql handle used for migrations, then the pool,
+// which waits for acquired connections to be released. Raptor calls it
+// from Shutdown after requests have drained and services have stopped.
+func (c *PgxConnector) Close() error {
+	var err error
+	if c.sqlDB != nil {
+		err = c.sqlDB.Close()
+	}
+	if c.pool != nil {
+		c.pool.Close()
+	}
+	return err
 }
 
 // poolConfig turns the Raptor database config into a pool config, with
