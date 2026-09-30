@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"reflect"
 	"strings"
+	"sync/atomic"
 
 	"github.com/go-raptor/connectors"
 	"github.com/go-raptor/connectors/goosemigrator"
@@ -79,8 +80,8 @@ func (c *SQLiteConnector) Init() error {
 	}
 
 	if isMemory(name) {
-		// A shared-cache in-memory database is dropped when its last
-		// connection closes, so keep exactly one connection alive.
+		// A named in-memory database is dropped when its last connection
+		// closes, so keep exactly one connection alive.
 		db.SetMaxOpenConns(1)
 	}
 
@@ -116,12 +117,27 @@ func isMemory(name string) bool {
 	return name == ":memory:" || strings.Contains(name, ":memory:") || strings.Contains(name, "mode=memory")
 }
 
-// buildDSN turns a configured database name into a modernc.org/sqlite DSN with
-// sensible defaults (foreign keys on; for file databases also a busy timeout
-// and WAL journaling). Pragmas are applied per connection.
+// dsnOptions are the per-connection settings every file database gets:
+// wait up to 5s for a lock, enforce foreign keys, journal in WAL mode, and
+// begin transactions IMMEDIATE. Go's default deferred BEGIN makes a
+// transaction that read before another one committed fail its write at once
+// (SQLITE_BUSY_SNAPSHOT), which no busy timeout can wait out.
+const dsnOptions = "_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_pragma=journal_mode(WAL)&_txlock=immediate"
+
+// memoryDatabases numbers in-memory databases. Each connector gets its own
+// named one: SQLite shares a named in-memory database between connections,
+// which keeps it alive, but a single unnamed shared one would leak tables
+// between connectors, such as two test apps in one process.
+var memoryDatabases atomic.Uint64
+
+// buildDSN turns a configured database name into a modernc.org/sqlite DSN.
+// Settings are appended to a query string the name already has.
 func buildDSN(name string) string {
 	if isMemory(name) {
-		return "file::memory:?cache=shared&_pragma=foreign_keys(ON)"
+		return fmt.Sprintf("file:raptor-memory-%d?mode=memory&cache=shared&_pragma=foreign_keys(ON)&_txlock=immediate", memoryDatabases.Add(1))
 	}
-	return name + "?_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_pragma=journal_mode(WAL)"
+	if strings.Contains(name, "?") {
+		return name + "&" + dsnOptions
+	}
+	return name + "?" + dsnOptions
 }

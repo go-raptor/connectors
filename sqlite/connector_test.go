@@ -1,11 +1,13 @@
 package sqlite
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 type dbConfig struct{ Name string }
@@ -55,4 +57,93 @@ func TestCloseBeforeInit(t *testing.T) {
 
 func TestPointerConfig(t *testing.T) {
 	open(t, &dbConfig{Name: filepath.Join(t.TempDir(), "p.db")})
+}
+
+// Go's BEGIN is deferred: a transaction that read before another one
+// committed fails its write at once with SQLITE_BUSY_SNAPSHOT (517), and
+// busy_timeout can't help. BEGIN IMMEDIATE takes the write lock up front,
+// so the second transaction waits instead.
+func TestConcurrentWriteTransactionsWait(t *testing.T) {
+	db := open(t, dbConfig{Name: filepath.Join(t.TempDir(), "tx.db")}).db
+	if _, err := db.Exec(`CREATE TABLE counter (n int); INSERT INTO counter VALUES (0)`); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	tx1, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := tx1.QueryRowContext(ctx, `SELECT n FROM counter`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+
+	second := make(chan error, 1)
+	go func() {
+		tx2, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			second <- err
+			return
+		}
+		var m int
+		if err := tx2.QueryRowContext(ctx, `SELECT n FROM counter`).Scan(&m); err != nil {
+			tx2.Rollback()
+			second <- err
+			return
+		}
+		if _, err := tx2.ExecContext(ctx, `UPDATE counter SET n = ?`, m+1); err != nil {
+			tx2.Rollback()
+			second <- err
+			return
+		}
+		second <- tx2.Commit()
+	}()
+	time.Sleep(100 * time.Millisecond) // let the second transaction start
+
+	if _, err := tx1.ExecContext(ctx, `UPDATE counter SET n = ?`, n+1); err != nil {
+		t.Fatalf("first transaction: %v", err)
+	}
+	if err := tx1.Commit(); err != nil {
+		t.Fatalf("first commit: %v", err)
+	}
+	if err := <-second; err != nil {
+		t.Fatalf("second transaction: %v", err)
+	}
+	if err := db.QueryRow(`SELECT n FROM counter`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("counter = %d (%v), want 2: an increment was lost", n, err)
+	}
+}
+
+func TestMemoryDatabasesAreSeparate(t *testing.T) {
+	a := open(t, dbConfig{Name: ":memory:"}).db
+	b := open(t, dbConfig{Name: ":memory:"}).db
+	if _, err := a.Exec(`CREATE TABLE only_in_a (x int); INSERT INTO only_in_a VALUES (1)`); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := b.QueryRow(`SELECT count(*) FROM sqlite_master WHERE name = 'only_in_a'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("two in-memory connectors share one database (count %d, %v)", n, err)
+	}
+	if err := a.QueryRow(`SELECT x FROM only_in_a`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("an in-memory database must keep its data between queries: %d, %v", n, err)
+	}
+}
+
+func TestNameWithQueryKeepsPragmas(t *testing.T) {
+	db := open(t, dbConfig{Name: "file:" + filepath.Join(t.TempDir(), "q.db") + "?mode=rwc"}).db
+	var fk, busy int
+	var journal string
+	if err := db.QueryRow(`PRAGMA foreign_keys`).Scan(&fk); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`PRAGMA busy_timeout`).Scan(&busy); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`PRAGMA journal_mode`).Scan(&journal); err != nil {
+		t.Fatal(err)
+	}
+	if fk != 1 || busy != 5000 || journal != "wal" {
+		t.Fatalf("pragmas lost: foreign_keys=%d busy_timeout=%d journal_mode=%s", fk, busy, journal)
+	}
 }
