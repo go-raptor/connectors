@@ -3,6 +3,7 @@ package pgx
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -115,17 +116,43 @@ func (c *PgxConnector) Init() error {
 }
 
 // Close closes the database/sql handle used for migrations, then the pool,
-// which waits for acquired connections to be released. Raptor calls it
-// from Shutdown after requests have drained and services have stopped.
+// which waits up to closeTimeout for acquired connections to be released.
+// Raptor calls it from Shutdown after requests have drained and services
+// have stopped.
 func (c *PgxConnector) Close() error {
 	var err error
 	if c.sqlDB != nil {
 		err = c.sqlDB.Close()
 	}
-	if c.pool != nil {
-		c.pool.Close()
+	if c.pool != nil && !closeWithin(c.pool.Close, closeTimeout) {
+		err = errors.Join(err, fmt.Errorf("pool still closing after %v: %d connections not released", closeTimeout, c.pool.Stat().AcquiredConns()))
 	}
 	return err
+}
+
+// closeTimeout bounds how long Close waits for acquired connections to be
+// released. A connection still held after it (a query on
+// context.Background(), unclosed rows, a missing Release) would otherwise
+// hold shutdown until the process is killed; the pool finishes closing in
+// the background.
+const closeTimeout = 5 * time.Second
+
+// closeWithin runs closeFn and reports whether it returned within timeout.
+// Past the timeout, closeFn keeps running in the background.
+func closeWithin(closeFn func(), timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		closeFn()
+		close(done)
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return true
+	case <-timer.C:
+		return false
+	}
 }
 
 // poolConfig turns the Raptor database config into a pool config, with

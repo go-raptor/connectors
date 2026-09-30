@@ -95,3 +95,21 @@ func TestCloseClosesPoolAndSQLHandle(t *testing.T) {
 		t.Fatal("the pool must be closed")
 	}
 }
+
+// A pool closes only after every acquired connection is released; a query
+// on context.Background() or a missing Release would otherwise hold
+// Raptor's shutdown until the process is killed.
+func TestCloseWithinBoundsABlockedClose(t *testing.T) {
+	release := make(chan struct{})
+	defer close(release)
+	start := time.Now()
+	if closeWithin(func() { <-release }, 50*time.Millisecond) {
+		t.Fatal("a close still blocked after the timeout must report false")
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("closeWithin waited %v past a 50ms timeout", elapsed)
+	}
+	if !closeWithin(func() {}, time.Second) {
+		t.Fatal("a close that returns in time must report true")
+	}
+}
