@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
+	"time"
 
 	"github.com/go-raptor/connectors"
 	"github.com/go-raptor/connectors/goosemigrator"
@@ -16,13 +17,34 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
+// defaultConnectTimeout bounds each connection attempt and the startup
+// ping, so an unreachable database fails startup in seconds instead of
+// after the OS gives up on the TCP handshake (about two minutes on Linux).
+// PGCONNECT_TIMEOUT and WithPoolConfig override it.
+const defaultConnectTimeout = 10 * time.Second
+
 type PostgresConnector struct {
-	config       any
-	pool         *pgxpool.Pool
-	sqlDB        *sql.DB
-	conn         *bun.DB
-	migrationsFS fs.FS
-	migrator     connectors.Migrator
+	config        any
+	pool          *pgxpool.Pool
+	sqlDB         *sql.DB
+	conn          *bun.DB
+	migrationsFS  fs.FS
+	migrator      connectors.Migrator
+	configurePool []func(*pgxpool.Config)
+}
+
+// Option configures a PostgresConnector.
+type Option func(*PostgresConnector)
+
+// WithPoolConfig adjusts the pool configuration built from Raptor's
+// database config before the pool opens: MaxConns and the connection
+// lifetimes, ConnConfig.ConnectTimeout, or server settings such as
+// statement_timeout through ConnConfig.RuntimeParams. Several options
+// apply in order.
+func WithPoolConfig(configure func(*pgxpool.Config)) Option {
+	return func(c *PostgresConnector) {
+		c.configurePool = append(c.configurePool, configure)
+	}
 }
 
 // NewPostgresConnector returns a Postgres connector backed by Bun. The
@@ -35,10 +57,12 @@ type PostgresConnector struct {
 // builder inside a Go migration, wrap the transaction:
 //
 //	bunTx := bun.NewTx(tx, pgdialect.New())
-func NewPostgresConnector(migrationsFS fs.FS) connectors.DatabaseConnector {
-	return &PostgresConnector{
-		migrationsFS: migrationsFS,
+func NewPostgresConnector(migrationsFS fs.FS, opts ...Option) connectors.DatabaseConnector {
+	c := &PostgresConnector{migrationsFS: migrationsFS}
+	for _, opt := range opts {
+		opt(c)
 	}
+	return c
 }
 
 func (c *PostgresConnector) SetConfig(config any) {
@@ -54,14 +78,9 @@ func (c *PostgresConnector) Migrator() connectors.Migrator {
 }
 
 func (c *PostgresConnector) Init() error {
-	dsn, err := connString(c.config)
+	poolConfig, err := c.poolConfig()
 	if err != nil {
 		return err
-	}
-
-	poolConfig, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		return fmt.Errorf("failed to parse DSN: %w", err)
 	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
@@ -73,7 +92,7 @@ func (c *PostgresConnector) Init() error {
 	c.sqlDB = stdlib.OpenDBFromPool(pool)
 	c.conn = bun.NewDB(c.sqlDB, pgdialect.New())
 
-	if err := c.conn.PingContext(context.Background()); err != nil {
+	if err := ping(c.pool, poolConfig.ConnConfig.ConnectTimeout); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -91,4 +110,36 @@ func (c *PostgresConnector) Init() error {
 	c.migrator = migrator
 
 	return nil
+}
+
+// poolConfig turns the Raptor database config into a pool config, with
+// the default connect timeout and the WithPoolConfig options applied.
+func (c *PostgresConnector) poolConfig() (*pgxpool.Config, error) {
+	dsn, err := connString(c.config)
+	if err != nil {
+		return nil, err
+	}
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse DSN: %w", err)
+	}
+	if poolConfig.ConnConfig.ConnectTimeout == 0 {
+		poolConfig.ConnConfig.ConnectTimeout = defaultConnectTimeout
+	}
+	for _, configure := range c.configurePool {
+		configure(poolConfig)
+	}
+	return poolConfig, nil
+}
+
+// ping checks that the database is reachable, bounded by timeout when one
+// is set.
+func ping(pool *pgxpool.Pool, timeout time.Duration) error {
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return pool.Ping(ctx)
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
+	"time"
 
 	"github.com/go-raptor/connectors"
 	"github.com/go-raptor/connectors/goosemigrator"
@@ -14,12 +15,33 @@ import (
 	"github.com/pressly/goose/v3/lock"
 )
 
+// defaultConnectTimeout bounds each connection attempt and the startup
+// ping, so an unreachable database fails startup in seconds instead of
+// after the OS gives up on the TCP handshake (about two minutes on Linux).
+// PGCONNECT_TIMEOUT and WithPoolConfig override it.
+const defaultConnectTimeout = 10 * time.Second
+
 type PgxConnector struct {
-	config       interface{}
-	pool         *pgxpool.Pool
-	sqlDB        *sql.DB
-	migrationsFS fs.FS
-	migrator     connectors.Migrator
+	config        interface{}
+	pool          *pgxpool.Pool
+	sqlDB         *sql.DB
+	migrationsFS  fs.FS
+	migrator      connectors.Migrator
+	configurePool []func(*pgxpool.Config)
+}
+
+// Option configures a PgxConnector.
+type Option func(*PgxConnector)
+
+// WithPoolConfig adjusts the pool configuration built from Raptor's
+// database config before the pool opens: MaxConns and the connection
+// lifetimes, ConnConfig.ConnectTimeout, or server settings such as
+// statement_timeout through ConnConfig.RuntimeParams. Several options
+// apply in order.
+func WithPoolConfig(configure func(*pgxpool.Config)) Option {
+	return func(c *PgxConnector) {
+		c.configurePool = append(c.configurePool, configure)
+	}
 }
 
 // NewPgxConnector returns a Postgres connector backed by pgx. The
@@ -27,10 +49,12 @@ type PgxConnector struct {
 // the migration files (typically `fs.Sub(embedFS, "db/migrations")`). Pass
 // nil if no SQL migrations are embedded; Go migrations registered via
 // goose.AddMigration* still work.
-func NewPgxConnector(migrationsFS fs.FS) connectors.DatabaseConnector {
-	return &PgxConnector{
-		migrationsFS: migrationsFS,
+func NewPgxConnector(migrationsFS fs.FS, opts ...Option) connectors.DatabaseConnector {
+	c := &PgxConnector{migrationsFS: migrationsFS}
+	for _, opt := range opts {
+		opt(c)
 	}
+	return c
 }
 
 func (c *PgxConnector) SetConfig(config interface{}) {
@@ -46,14 +70,9 @@ func (c *PgxConnector) Migrator() connectors.Migrator {
 }
 
 func (c *PgxConnector) Init() error {
-	dsn, err := connString(c.config)
+	poolConfig, err := c.poolConfig()
 	if err != nil {
 		return err
-	}
-
-	poolConfig, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		return fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
@@ -61,7 +80,7 @@ func (c *PgxConnector) Init() error {
 		return fmt.Errorf("failed to create connection pool: %w", err)
 	}
 
-	if err := pool.Ping(context.Background()); err != nil {
+	if err := ping(pool, poolConfig.ConnConfig.ConnectTimeout); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -82,4 +101,36 @@ func (c *PgxConnector) Init() error {
 	c.migrator = migrator
 
 	return nil
+}
+
+// poolConfig turns the Raptor database config into a pool config, with
+// the default connect timeout and the WithPoolConfig options applied.
+func (c *PgxConnector) poolConfig() (*pgxpool.Config, error) {
+	dsn, err := connString(c.config)
+	if err != nil {
+		return nil, err
+	}
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse connection string: %w", err)
+	}
+	if poolConfig.ConnConfig.ConnectTimeout == 0 {
+		poolConfig.ConnConfig.ConnectTimeout = defaultConnectTimeout
+	}
+	for _, configure := range c.configurePool {
+		configure(poolConfig)
+	}
+	return poolConfig, nil
+}
+
+// ping checks that the database is reachable, bounded by timeout when one
+// is set.
+func ping(pool *pgxpool.Pool, timeout time.Duration) error {
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	return pool.Ping(ctx)
 }
