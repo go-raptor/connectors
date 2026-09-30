@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"io/fs"
 	"reflect"
 	"strings"
@@ -15,6 +16,8 @@ import (
 	"github.com/uptrace/bun/dialect/sqlitedialect"
 	_ "modernc.org/sqlite"
 )
+
+var _ io.Closer = (*SQLiteConnector)(nil)
 
 type SQLiteConnector struct {
 	config       any
@@ -53,7 +56,7 @@ func (c *SQLiteConnector) Migrator() connectors.Migrator {
 }
 
 func (c *SQLiteConnector) Init() error {
-	val := reflect.ValueOf(c.config)
+	val := reflect.Indirect(reflect.ValueOf(c.config))
 	if val.Kind() != reflect.Struct {
 		return fmt.Errorf("config must be a struct")
 	}
@@ -95,6 +98,17 @@ func (c *SQLiteConnector) Init() error {
 	c.migrator = migrator
 
 	return nil
+}
+
+// Close closes the Bun handle and the database beneath it. For a file
+// database, the last connection to close checkpoints the WAL into the main
+// file and removes it. Raptor calls Close from Shutdown after requests have
+// drained and services have stopped.
+func (c *SQLiteConnector) Close() error {
+	if c.conn == nil {
+		return nil
+	}
+	return c.conn.Close()
 }
 
 // isMemory reports whether name refers to an in-memory SQLite database.

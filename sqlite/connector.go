@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"io/fs"
 	"reflect"
 	"strings"
@@ -13,6 +14,8 @@ import (
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
+
+var _ io.Closer = (*SQLiteConnector)(nil)
 
 type SQLiteConnector struct {
 	config       any
@@ -45,7 +48,7 @@ func (c *SQLiteConnector) Migrator() connectors.Migrator {
 }
 
 func (c *SQLiteConnector) Init() error {
-	val := reflect.ValueOf(c.config)
+	val := reflect.Indirect(reflect.ValueOf(c.config))
 	if val.Kind() != reflect.Struct {
 		return fmt.Errorf("config must be a struct")
 	}
@@ -84,6 +87,16 @@ func (c *SQLiteConnector) Init() error {
 	c.migrator = migrator
 
 	return nil
+}
+
+// Close closes the database. For a file database, the last connection to
+// close checkpoints the WAL into the main file and removes it. Raptor calls
+// Close from Shutdown after requests have drained and services have stopped.
+func (c *SQLiteConnector) Close() error {
+	if c.db == nil {
+		return nil
+	}
+	return c.db.Close()
 }
 
 func isMemory(name string) bool {
