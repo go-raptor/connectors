@@ -2,7 +2,7 @@
 
 Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/postgres/vX.Y.Z`).
 
-## pgx — Unreleased
+## pgx — v1.3.0 (2026-09-30)
 
 ### Upgrading
 
@@ -27,7 +27,7 @@ Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/p
 
 - Requires pgx v5.11.0 and goose v3.28.0.
 
-## bun/postgres — Unreleased
+## bun/postgres — v1.3.0 (2026-09-30)
 
 ### Upgrading
 
@@ -52,7 +52,7 @@ Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/p
 
 - Requires pgx v5.11.0 and goose v3.28.0.
 
-## sqlite — Unreleased
+## sqlite — v1.1.0 (2026-09-30)
 
 ### Upgrading
 
@@ -73,7 +73,7 @@ Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/p
 
 - Requires modernc.org/sqlite v1.60.1 and goose v3.28.0.
 
-## bun/sqlite — Unreleased
+## bun/sqlite — v1.1.0 (2026-09-30)
 
 ### Upgrading
 
