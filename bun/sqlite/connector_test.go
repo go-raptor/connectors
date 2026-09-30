@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -145,5 +146,14 @@ func TestNameWithQueryKeepsPragmas(t *testing.T) {
 	}
 	if fk != 1 || busy != 5000 || journal != "wal" {
 		t.Fatalf("pragmas lost: foreign_keys=%d busy_timeout=%d journal_mode=%s", fk, busy, journal)
+	}
+}
+
+// Each SQLite package numbers its own in-memory databases, so the names
+// must differ by package: a sqlite and a bun/sqlite connector in one
+// process would otherwise open the same database.
+func TestMemoryDatabaseNameIsPackageSpecific(t *testing.T) {
+	if dsn := buildDSN(":memory:"); !strings.HasPrefix(dsn, "file:raptor-bun-sqlite-memory-") {
+		t.Fatalf("in-memory DSN %q must start with file:raptor-bun-sqlite-memory-", dsn)
 	}
 }

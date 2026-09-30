@@ -127,14 +127,15 @@ const dsnOptions = "_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_pragma=
 // memoryDatabases numbers in-memory databases. Each connector gets its own
 // named one: SQLite shares a named in-memory database between connections,
 // which keeps it alive, but a single unnamed shared one would leak tables
-// between connectors, such as two test apps in one process.
+// between connectors, such as two test apps in one process. The name
+// carries the package, since sqlite and bun/sqlite count separately.
 var memoryDatabases atomic.Uint64
 
 // buildDSN turns a configured database name into a modernc.org/sqlite DSN.
 // Settings are appended to a query string the name already has.
 func buildDSN(name string) string {
 	if isMemory(name) {
-		return fmt.Sprintf("file:raptor-memory-%d?mode=memory&cache=shared&_pragma=foreign_keys(ON)&_txlock=immediate", memoryDatabases.Add(1))
+		return fmt.Sprintf("file:raptor-bun-sqlite-memory-%d?mode=memory&cache=shared&_pragma=foreign_keys(ON)&_txlock=immediate", memoryDatabases.Add(1))
 	}
 	if strings.Contains(name, "?") {
 		return name + "&" + dsnOptions
