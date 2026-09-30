@@ -175,14 +175,21 @@ func (c *PgxConnector) poolConfig() (*pgxpool.Config, error) {
 	return poolConfig, nil
 }
 
-// ping checks that the database is reachable, bounded by timeout when one
-// is set.
+// ping checks that the database is reachable. Connecting needs no outer
+// deadline: pgconn bounds each address it tries by ConnectTimeout, so a
+// host with several addresses still falls back to the next one, and a
+// failure names the address. The ping round trip gets the same bound.
 func ping(pool *pgxpool.Pool, timeout time.Duration) error {
+	conn, err := pool.Acquire(context.Background())
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
 	ctx := context.Background()
 	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	return pool.Ping(ctx)
+	return conn.Ping(ctx)
 }

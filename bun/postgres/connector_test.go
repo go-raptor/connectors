@@ -116,3 +116,20 @@ func TestCloseWithinBoundsABlockedClose(t *testing.T) {
 		t.Fatal("a close that returns in time must report true")
 	}
 }
+
+// pgconn bounds each address it tries by ConnectTimeout and names the
+// address in its error. An outer deadline equal to that timeout would
+// expire first, hiding the host and skipping any fallback address.
+func TestUnreachableErrorNamesHost(t *testing.T) {
+	c := NewPostgresConnector(nil, WithPoolConfig(func(pc *pgxpool.Config) {
+		pc.ConnConfig.ConnectTimeout = 300 * time.Millisecond
+	})).(*PostgresConnector)
+	cfg := testConfig()
+	cfg.Host = "10.255.255.1"
+	c.SetConfig(cfg)
+
+	err := c.Init()
+	if err == nil || !strings.Contains(err.Error(), "10.255.255.1") {
+		t.Fatalf("the startup error must name the unreachable address: %v", err)
+	}
+}
