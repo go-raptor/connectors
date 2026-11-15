@@ -2,6 +2,62 @@
 
 Each connector is its own module, versioned by its own tag (`pgx/vX.Y.Z`, `bun/postgres/vX.Y.Z`).
 
+## pgx — v1.4.1 (2026-11-15)
+
+### Upgrading
+
+- Requires Go 1.27.
+
+### Changed
+
+- Requires pgx v5.13.0, goose v3.30.1, goosemigrator v1.1.2 and connectors v1.1.1. Works with raptor/v4 v4.7.0.
+
+## bun/postgres — v1.4.1 (2026-11-15)
+
+### Upgrading
+
+- Requires Go 1.27.
+
+### Changed
+
+- Requires Bun v1.3.0, pgx v5.13.0, goose v3.30.1, goosemigrator v1.1.2 and connectors v1.1.1. Works with raptor/v4 v4.7.0.
+
+## sqlite — v1.2.1 (2026-11-15)
+
+### Upgrading
+
+- Requires Go 1.27.
+
+### Changed
+
+- Requires modernc.org/sqlite v1.62.0, goose v3.30.1, goosemigrator v1.1.2 and connectors v1.1.1. Works with raptor/v4 v4.7.0.
+
+## bun/sqlite — v1.2.1 (2026-11-15)
+
+### Upgrading
+
+- Requires Go 1.27.
+
+### Changed
+
+- Requires Bun v1.3.0, modernc.org/sqlite v1.62.0, goose v3.30.1, goosemigrator v1.1.2 and connectors v1.1.1. Works with raptor/v4 v4.7.0.
+
+## goosemigrator — v1.1.2 (2026-11-15)
+
+### Upgrading
+
+- Requires Go 1.27.
+
+### Changed
+
+- Requires goose v3.30.1 and connectors v1.1.1.
+
+## connectors — v1.1.1 (2026-11-15)
+
+### Upgrading
+
+- Requires Go 1.27.
+
 ## pgx — v1.4.0 (2026-09-30)
 
 ### Added
